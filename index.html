@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0d14" />
+  <title>Quiz Arena · Wayground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    /* ══════════════════════════════════════
+       TOKENS
+    ══════════════════════════════════════ */
+    :root {
+      --bg:        #0d0d14;
+      --surface:   #15151f;
+      --border:    rgba(255,255,255,0.07);
+      --accent:    #e8ff47;
+      --accent-dk: #b8cc00;
+      --text:      #f2f2f8;
+      --muted:     #6b6b88;
+      --bar-h:     48px;
+      --font:      'Outfit', sans-serif;
+      --safe-b:    env(safe-area-inset-bottom, 0px);
+      --safe-t:    env(safe-area-inset-top, 0px);
+    }
+
+    /* ══════════════════════════════════════
+       RESET & BASE
+    ══════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); }
+    body {
+      font-family: var(--font);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      /* account for notch */
+      padding-top: var(--safe-t);
+    }
+
+    /* ══════════════════════════════════════
+       TOP BAR
+    ══════════════════════════════════════ */
+    #bar {
+      flex-shrink: 0;
+      height: var(--bar-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 10px;
+      transition: height 0.3s ease, opacity 0.3s ease;
+      overflow: hidden;
+      position: relative;
+      z-index: 10;
+    }
+    body.fullscreen #bar {
+      height: 0;
+      opacity: 0;
+      border-bottom-color: transparent;
+    }
+
+    /* Logo */
+    .logo {
+      display: flex; align-items: center; gap: 7px;
+      font-weight: 900; font-size: 0.95rem;
+      letter-spacing: -0.02em; user-select: none;
+    }
+    .logo-pip {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      flex-shrink: 0;
+    }
+
+    /* Spacer */
+    .spacer { flex: 1; }
+
+    /* Live badge */
+    .live-badge {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(232,255,71,0.1);
+      border: 1px solid rgba(232,255,71,0.25);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 0.7rem; font-weight: 600;
+      color: var(--accent); letter-spacing: 0.06em;
+    }
+    .live-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--accent);
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity: 1; } 50% { opacity: 0.2; }
+    }
+
+    /* Icon buttons */
+    .icon-btn {
+      width: 32px; height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .icon-btn:hover, .icon-btn:active {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border-color: rgba(255,255,255,0.15);
+    }
+    .icon-btn svg { pointer-events: none; }
+
+    /* ══════════════════════════════════════
+       IFRAME WRAPPER — FILLS ALL REMAINING SPACE
+    ══════════════════════════════════════ */
+    #stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      /* bottom safe area for iPhone home bar */
+      padding-bottom: var(--safe-b);
+    }
+    body.fullscreen #stage { padding-top: var(--safe-t); padding-bottom: var(--safe-b); }
+
+    #quiz-frame {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      border: none;
+      display: block;
+      background: var(--bg);
+    }
+
+    /* ══════════════════════════════════════
+       LOADING SCREEN
+    ══════════════════════════════════════ */
+    #loader {
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px;
+      background: var(--bg);
+      transition: opacity 0.5s, visibility 0.5s;
+    }
+    #loader.gone { opacity: 0; visibility: hidden; }
+
+    .loader-ring {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 3px solid rgba(232,255,71,0.15);
+      border-top-color: var(--accent);
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loader-label {
+      font-size: 0.82rem; font-weight: 500;
+      color: var(--muted); letter-spacing: 0.04em;
+    }
+
+    /* ══════════════════════════════════════
+       FULLSCREEN FLOAT BUTTON (mobile — bottom-right)
+    ══════════════════════════════════════ */
+    #fab {
+      position: fixed;
+      bottom: calc(16px + var(--safe-b));
+      right: 16px;
+      z-index: 20;
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      border: 1px solid rgba(232,255,71,0.3);
+      background: rgba(13,13,20,0.85);
+      backdrop-filter: blur(12px);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.25s, transform 0.25s;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+    #fab:active { transform: scale(0.92); }
+
+    /* Hide FAB on desktop — top bar button is enough */
+    @media (min-width: 768px) { #fab { display: none; } }
+
+    /* ══════════════════════════════════════
+       TOAST
+    ══════════════════════════════════════ */
+    #toast {
+      position: fixed;
+      bottom: calc(72px + var(--safe-b));
+      left: 50%; transform: translateX(-50%) translateY(6px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 40px;
+      padding: 9px 20px;
+      font-size: 0.8rem; font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      pointer-events: none; opacity: 0;
+      transition: opacity 0.25s, transform 0.25s;
+      z-index: 100;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ══════════════════════════════════════
+       WAYGROUND CREDIT — subtle bottom strip
+    ══════════════════════════════════════ */
+    #credit {
+      position: fixed;
+      bottom: var(--safe-b);
+      left: 0; right: 0;
+      text-align: center;
+      padding: 4px 0;
+      font-size: 0.68rem;
+      color: var(--muted);
+      pointer-events: none;
+      opacity: 0.5;
+      z-index: 5;
+    }
+    #credit a { color: inherit; text-decoration: none; pointer-events: all; }
+    #credit a:hover { color: var(--accent); }
+
+    /* Hide credit in fullscreen to maximize space */
+    body.fullscreen #credit { display: none; }
+
+    /* ══════════════════════════════════════
+       PC — constrained centered layout option
+       (user can toggle with ⊡ button)
+    ══════════════════════════════════════ */
+    body.constrained #stage {
+      display: flex; align-items: center; justify-content: center;
+      background: #08080f;
+    }
+    body.constrained #quiz-frame {
+      position: relative;
+      max-width: 860px;
+      height: 100%;
+      border-radius: 0;
+      box-shadow: 0 0 80px rgba(0,0,0,0.7);
+    }
+
+    /* ══════════════════════════════════════
+       SCROLLBAR (desktop)
+    ══════════════════════════════════════ */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <!-- ── TOP BAR ── -->
+  <header id="bar">
+    <div class="logo">
+      <span class="logo-pip"></span>
+      QuizArena
+    </div>
+
+    <div class="live-badge">
+      <span class="live-dot"></span>
+      LIVE
+    </div>
+
+    <div class="spacer"></div>
+
+    <!-- Constrained width toggle (PC) -->
+    <button class="icon-btn" id="btnConstrain" title="Thu gọn / Toàn ngang" aria-label="Toggle width">
+      <svg width="16" height="16" fill="none" viewBox="0 0 16 16">
+        <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M5 8h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <!-- Share -->
+    <button class="icon-btn" id="btnShare" title="Chia sẻ" aria-label="Share">
+      <svg width="15" height="15" fill="none" viewBox="0 0 15 15">
+        <path d="M11 1.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4ZM4 5.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm7 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M5.8 6.7 9.2 5m0 5-3.4-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <!-- Fullscreen -->
+    <button class="icon-btn" id="btnFull" title="Toàn màn hình" aria-label="Fullscreen">
+      <svg id="iconExpand" width="15" height="15" fill="none" viewBox="0 0 15 15">
+        <path d="M2 5V2h3M10 2h3v3M13 10v3h-3M5 13H2v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <svg id="iconCollapse" width="15" height="15" fill="none" viewBox="0 0 15 15" style="display:none">
+        <path d="M5 2v3H2M13 5h-3V2M10 13v-3h3M2 10h3v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- ── STAGE ── -->
+  <div id="stage">
+    <!-- Loader -->
+    <div id="loader">
+      <div class="loader-ring"></div>
+      <span class="loader-label">Đang tải quiz…</span>
+    </div>
+
+    <iframe
+      id="quiz-frame"
+      src="https://wayground.com/embed/quiz/69fca47cd2d54a54dd083236"
+      title="Quiz Challenge - Wayground"
+      frameborder="0"
+      allowfullscreen
+      allow="fullscreen"
+      loading="eager"
+    ></iframe>
+  </div>
+
+  <!-- Mobile FAB fullscreen -->
+  <button id="fab" aria-label="Fullscreen">
+    <svg id="fabExpand" width="18" height="18" fill="none" viewBox="0 0 15 15">
+      <path d="M2 5V2h3M10 2h3v3M13 10v3h-3M5 13H2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <svg id="fabCollapse" width="18" height="18" fill="none" viewBox="0 0 15 15" style="display:none">
+      <path d="M5 2v3H2M13 5h-3V2M10 13v-3h3M2 10h3v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <!-- Credit -->
+  <div id="credit">
+    <a href="https://wayground.com/admin?source=embedFrame" target="_blank" rel="noopener">
+      Powered by Wayground
+    </a>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast">🔗 Đã sao chép link!</div>
+
+  <script>
+    /* ── Loader hide on iframe load ── */
+    const frame  = document.getElementById('quiz-frame');
+    const loader = document.getElementById('loader');
+
+    frame.addEventListener('load', () => loader.classList.add('gone'));
+    setTimeout(() => loader.classList.add('gone'), 10000); // fallback
+
+    /* ── Fullscreen toggle ── */
+    const body        = document.body;
+    const btnFull     = document.getElementById('btnFull');
+    const fab         = document.getElementById('fab');
+    const iconExpand  = document.getElementById('iconExpand');
+    const iconCollapse= document.getElementById('iconCollapse');
+    const fabExpand   = document.getElementById('fabExpand');
+    const fabCollapse = document.getElementById('fabCollapse');
+
+    function setFullscreen(on) {
+      body.classList.toggle('fullscreen', on);
+      iconExpand.style.display   = on ? 'none' : '';
+      iconCollapse.style.display = on ? '' : 'none';
+      fabExpand.style.display    = on ? 'none' : '';
+      fabCollapse.style.display  = on ? '' : 'none';
+    }
+
+    btnFull.addEventListener('click', () => setFullscreen(!body.classList.contains('fullscreen')));
+    fab.addEventListener('click',     () => setFullscreen(!body.classList.contains('fullscreen')));
+
+    /* Swipe down to exit fullscreen (mobile) */
+    let touchY = 0;
+    document.addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
+    document.addEventListener('touchend', e => {
+      const dy = e.changedTouches[0].clientY - touchY;
+      if (dy > 60 && body.classList.contains('fullscreen')) setFullscreen(false);
+    }, { passive: true });
+
+    /* ── Constrained width toggle ── */
+    const btnConstrain = document.getElementById('btnConstrain');
+    btnConstrain.addEventListener('click', () => {
+      body.classList.toggle('constrained');
+      btnConstrain.style.color = body.classList.contains('constrained') ? 'var(--accent)' : '';
+    });
+
+    /* ── Share ── */
+    const toast = document.getElementById('toast');
+    let toastTimer;
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    document.getElementById('btnShare').addEventListener('click', async () => {
+      const url = 'https://wayground.com/embed/quiz/69fca47cd2d54a54dd083236';
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: 'Quiz Arena', url });
+        } else {
+          await navigator.clipboard.writeText(url);
+          showToast('🔗 Đã sao chép link!');
+        }
+      } catch {}
+    });
+
+    /* ── Native fullscreen API (desktop F11-style) ── */
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && body.classList.contains('fullscreen')) setFullscreen(false);
+      if (e.key === 'F11') { e.preventDefault(); setFullscreen(!body.classList.contains('fullscreen')); }
+    });
+
+    /* ── Prevent pull-to-refresh on mobile ── */
+    document.addEventListener('touchmove', e => {
+      if (e.touches.length === 1) e.preventDefault();
+    }, { passive: false });
+  </script>
+</body>
+</html>
